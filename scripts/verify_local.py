@@ -3,16 +3,17 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-if not (ROOT / ".env").exists():
-    raise SystemExit("MISSING .env: copy .env.example to .env and configure it first.")
-
-from sqlalchemy import text
-from app.config import get_settings
-from app.db import make_engine
-
-
 def main() -> int:
+    # Validate local configuration before importing application/database settings.
+    root = Path(__file__).resolve().parents[1]
+    if not (root / ".env").exists():
+        print("MISSING .env: copy .env.example to .env and configure it first.", file=sys.stderr)
+        return 1
+
+    from sqlalchemy import text
+    from app.config import get_settings
+    from app.db import make_engine
+
     settings = get_settings()
     if not settings.database_url.startswith("postgresql+psycopg://"):
         print("ERROR: Native installation must use a PostgreSQL psycopg connection URL.", file=sys.stderr)
@@ -40,7 +41,6 @@ def main() -> int:
         return 1
     finally:
         engine.dispose()
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
