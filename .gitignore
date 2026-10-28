@@ -1,0 +1,18 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+*.sqlite*
+.coverage
+htmlcov/
+.idea/
+.vscode/
+infra/metrics_token
+
+backups/
+*.dump
+
+# Backups of previous local secret files
+.env.backup.*

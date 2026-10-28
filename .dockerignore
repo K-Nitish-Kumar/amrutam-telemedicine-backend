@@ -1,0 +1,8 @@
+.git
+.env
+.venv
+__pycache__
+.pytest_cache
+*.sqlite*
+*.pyc
+infra/metrics_token

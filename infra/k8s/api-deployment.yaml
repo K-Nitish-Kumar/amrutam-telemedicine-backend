@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amrutam-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: amrutam-api}
+  template:
+    metadata:
+      labels: {app: amrutam-api}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: registry.example.com/amrutam-api:1.0.0 # replace with immutable image digest
+          ports: [{containerPort: 8000}]
+          env:
+            - {name: APP_ENV, value: production}
+            - {name: RATE_LIMIT_BACKEND, value: redis}
+            - {name: PAYMENTS_MODE, value: disabled}
+            - {name: CORS_ORIGINS, value: 'https://app.example.com'}
+          envFrom: [{secretRef: {name: amrutam-secrets}}]
+          readinessProbe:
+            httpGet: {path: /health/ready, port: 8000}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health/live, port: 8000}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 250m, memory: 384Mi}
+            limits: {cpu: '1', memory: 768Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: Service
+metadata: {name: amrutam-api}
+spec:
+  selector: {app: amrutam-api}
+  ports: [{name: http, port: 80, targetPort: 8000}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: amrutam-api}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: amrutam-api}
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 65}

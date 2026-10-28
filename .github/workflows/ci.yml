@@ -1,0 +1,52 @@
+name: API CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: amrutam
+          POSTGRES_PASSWORD: test_password_only
+          POSTGRES_DB: amrutam_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U amrutam -d amrutam_test"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Compile + static quality checks
+        run: |
+          python -m compileall -q app
+          ruff check --select E4,E7,E9,F app tests scripts
+      - name: PostgreSQL migration smoke
+        env:
+          APP_ENV: development
+          DATABASE_URL: postgresql+psycopg://amrutam:test_password_only@localhost:5432/amrutam_test
+          JWT_SECRET: test-key-for-CI-only-please-never-use-1234567890
+          DATA_ENCRYPTION_KEYS: SdZgE4RFx9oq4yV8cC3b-CUHtwyYN1ldWdaKtB80Fr4=
+        run: |
+          alembic upgrade head
+          alembic current
+      - name: API tests (SQLite isolation + PostgreSQL concurrent booking)
+        env:
+          TEST_POSTGRES_URL: postgresql+psycopg://amrutam:test_password_only@localhost:5432/amrutam_test
+        run: python -m pytest -q
+      - name: Dependency vulnerability audit
+        run: pip-audit --progress-spinner off
+      - name: Docker build
+        run: docker build -t amrutam-backend:ci .
